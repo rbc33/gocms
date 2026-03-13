@@ -3,8 +3,8 @@ testdata_dir = "testdata"
 tmp_dir = "tmp"
 
 [build]
-  args_bin = []
-  bin = "./tmp/gocms --config ./gocms_config.toml"
+  args_bin = ["--config", "./gocms_config.toml"]
+  bin = "./tmp/gocms"
   cmd = "make build"
   # full_bin = "dlv exec ./tmp/gocms --listen=127.0.0.1:2345 --headless=true --api-version=2 --accept-multiclient --continue --log"
   delay = 1000

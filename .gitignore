@@ -12,3 +12,4 @@ media/*
 .DS_Store
 error.log
 error-admin.log
+Makefile
