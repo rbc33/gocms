@@ -16,10 +16,10 @@ jobs:
       - uses: actions/checkout@v4
         name: Checking Out Repo 👀
       - name: Golang Build 🐹
-        working-directory: ${{ github.workspace }}
-        run: make build
+        run: cd $GITHUB_WORKSPACE && make build
       - name: Package 📦
         run: |
+          cd $GITHUB_WORKSPACE
           mkdir gocms-ubuntu-build
           cp tmp/gocms gocms-ubuntu-build/
           cp tmp/gocms-admin gocms-ubuntu-build/
