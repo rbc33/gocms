@@ -1,72 +1,65 @@
 package app
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/mail"
+	"net/url"
 	"os"
+	"strings"
 	"time"
-
-	"context"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/mailersend/mailersend-go"
 	"github.com/rbc33/gocms/common"
 	"github.com/rbc33/gocms/database"
 	"github.com/rbc33/gocms/views"
 	"github.com/rs/zerolog/log"
-
-	recaptcha "cloud.google.com/go/recaptchaenterprise/v2/apiv1"
-
-	recaptchapb "cloud.google.com/go/recaptchaenterprise/v2/apiv1/recaptchaenterprisepb"
-	"github.com/mailersend/mailersend-go"
 )
 
-func verifyRecaptchaEnterprise(ctx context.Context, projectID, recaptchaKey, token, expectedAction string) error {
-	client, err := recaptcha.NewClient(ctx)
+func verifyRecaptchaV3(ctx context.Context, secret, token, expectedAction string) error {
+	body := url.Values{"secret": {secret}, "response": {token}}.Encode()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		"https://www.google.com/recaptcha/api/siteverify",
+		strings.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("error creating reCAPTCHA client: %w", err)
+		return fmt.Errorf("error building reCAPTCHA request: %w", err)
 	}
-	defer client.Close()
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	event := &recaptchapb.Event{
-		Token:   token,
-		SiteKey: recaptchaKey,
-	}
-
-	assessment := &recaptchapb.Assessment{
-		Event: event,
-	}
-
-	request := &recaptchapb.CreateAssessmentRequest{
-		Assessment: assessment,
-		Parent:     fmt.Sprintf("projects/%s", projectID),
-	}
-
-	response, err := client.CreateAssessment(ctx, request)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("error calling CreateAssessment: %w", err)
+		return fmt.Errorf("error contacting reCAPTCHA API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Success    bool     `json:"success"`
+		Score      float64  `json:"score"`
+		Action     string   `json:"action"`
+		ErrorCodes []string `json:"error-codes"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("error decoding reCAPTCHA response: %w", err)
 	}
 
-	if !response.TokenProperties.Valid {
-		return fmt.Errorf("invalid token: %v", response.TokenProperties.InvalidReason)
+	if !result.Success {
+		return fmt.Errorf("reCAPTCHA verification failed: %v", result.ErrorCodes)
 	}
 
-	if response.TokenProperties.Action != expectedAction {
-		return fmt.Errorf("unexpected action: got %q, want %q", response.TokenProperties.Action, expectedAction)
+	if result.Action != expectedAction {
+		return fmt.Errorf("unexpected action: got %q, want %q", result.Action, expectedAction)
 	}
 
-	log.Info().Msgf("reCAPTCHA Enterprise validation succeeded. Score: %.2f", response.RiskAnalysis.Score)
-	for _, reason := range response.RiskAnalysis.Reasons {
-		log.Info().Msgf("Risk reason: %s", reason.String())
+	if result.Score < 0.5 {
+		return fmt.Errorf("low reCAPTCHA score: %.2f", result.Score)
 	}
 
-	// You can add threshold check here if desired, e.g.:
-	if response.RiskAnalysis.Score < 0.5 {
-		return fmt.Errorf("low reCAPTCHA score: %.2f", response.RiskAnalysis.Score)
-	}
-
+	log.Info().Msgf("reCAPTCHA v3 validation succeeded. Score: %.2f", result.Score)
 	return nil
 }
 
@@ -182,7 +175,7 @@ func makeContactFormHandler() func(*gin.Context) {
 		// configured recatpcha settings
 		if (len(common.Settings.RecaptchaSecret) > 0) && (len(common.Settings.RecaptchaSiteKey) > 0) {
 			ctx := c.Request.Context()
-			err := verifyRecaptchaEnterprise(ctx, "gocms-1750166214215", common.Settings.RecaptchaSiteKey, recaptcha_response, "contact_submit")
+			err := verifyRecaptchaV3(ctx, common.Settings.RecaptchaSecret, recaptcha_response, "contact_submit")
 			if err != nil {
 				// El error ya se loguea dentro de verifyRecaptcha si es necesario o aquí en renderErrorPage
 				renderErrorPage(c, email, err)

@@ -1,4 +1,4 @@
-MY_SQL_URL="root:root@tcp(localhost:3306)/gocms"
+MY_SQL_URL="gocms:gocms@tcp(localhost:3306)/gocms"
 #MY_SQL_URL="root:secret@tcp(192.168.0.100:33060)/gocms"
 image_dir = "./images"
 PORT="8080"
@@ -7,8 +7,8 @@ PORT_ADMIN="8081"
 # Enable/disable endpoint cache
 cache_enabled = false
 
-recaptcha_sitekey = "6LcNTmQrAAAAAGrXZo-GdvxarYlFSXu5BVPZYEbi"
-recaptcha_secret = "6LcEamQrAAAAAHH4Nthgshj10uUmxxmXasW-pcfV"
+recaptcha_sitekey = "6LfjkowsAAAAAMDB5i-OAuyDKM5KlVKA_KiLyUZp"
+recaptcha_secret = "6LfjkowsAAAAACcyX8r93pTqtClBnsqMkNyg8ZN0"
 app_domain = "localhost"
 
 # Sticky posts will be expanded on home
